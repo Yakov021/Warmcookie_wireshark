@@ -30,7 +30,7 @@ Repositório dedicado à análise forense de rede do trojan WarmCookie, focado e
   ![connect_test](docs/imgs/connect_test.png)
 - seguido de uma tentativa de conexao com um dominio da miscrosoft
 - HTPP_export_objects
- ![http_object_export](docs/imgs/http_object_export.png)
+ ![http_object_export](docs/imgs/htpp_object_export.png)
 - momento da infeçãoo ao analisar tcp.stream eq 112
  ![momento da infecção](docs/imgs/momento_infeccao.png)
 - arquivo identificado disfarcado de fatura  ( Invoice 876597035_003.zip)
