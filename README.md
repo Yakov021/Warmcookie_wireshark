@@ -1,54 +1,82 @@
-# Análise de Tráfego: Malware WarmCookie 🍪
+# 🍪 Análise de Tráfego: Malware WarmCookie
 
-Repositório dedicado à análise forense de rede do trojan WarmCookie, focado em detecção de evasão, beaconing e movimentação lateral.
+![Badge](https://img.shields.io/badge/Ferramenta-Wireshark-blue?style=flat-square)
+![Badge](https://img.shields.io/badge/Tipo-Análise%20Forense-red?style=flat-square)
+![Badge](https://img.shields.io/badge/Ambiente-Sandbox-green?style=flat-square)
 
-## 📌 Resumo Executivo (TL;DR)
-- **PACIENTE_ZERO** IP ( 10.8.15.133)
-- **Status_Code200** para arquivo connecttest.txt
-- **Arquivo_malicioso** Invoice 876597035_003.zip (assinatura PK)
-- **Host_Suspeito** quote.checkfedexexp.com (typosquatting) trafego total de  2.769 KB
-- **Técnica de Evasão:** Mascaramento de ZIP como TXT (Magic Bytes check).
-- **C&C:** Identificado via SYN anômalo e beaconing UDP.
-- **ICMP_port_unreachable** tipo 3 , tentativa de comunicacao falha, ou exfiltracao
-- **Filtros_UDP_DNS** foi notado tentativas de conexao com dominios legitimos como adobe e microsoft
-- **erro_noSuch_name** consultas para wpad.lafontainebleau.org que retornaram erro. 
-- **Ambiente:** Captura realizada em ambiente controlado (Sandbox).
--
+Repositório dedicado à análise forense de rede do backdoor WarmCookie, focado em identificar o vetor de ataque, indicadores de comprometimento (IoCs) e comportamento pós-infecção.
+
+---
+
+## 📌 Resumo Executivo
+
+| Campo | Valor |
+|---|---|
+| **Paciente Zero** | `10.8.15.133` |
+| **Arquivo Malicioso** | `Invoice_876597035_003.zip` (assinatura PK disfarçada de `.txt`) |
+| **Host Suspeito** | `quote.checkfedexexp.com` — typosquatting da FedEx |
+| **Técnica de Evasão** | Mascaramento de ZIP como TXT (Magic Bytes mismatch) |
+| **C&C** | SYN anômalo + beaconing UDP para `72.54.43.29` |
+| **Ambiente** | Captura em ambiente controlado (Sandbox) |
+
+---
 
 ## 🛠️ Ferramentas Utilizadas
-- Wireshark
-## PCAPS.ALERTS 
-![ALERTAS_PCAPSUTILIZADOS](alerts/2024-08-15-traffic-analysis-exercise-alerts.jpg)
+
+- Wireshark — inspeção profunda de pacotes
+- Suricata/Snort Rules — correlação de alertas
+
+---
+
+## 🚨 Alertas
+
+![Alertas](alerts/2024-08-15-traffic-analysis-exercise-alerts.jpg)
+
+---
 
 ## 🕵️ Fluxo da Investigação
 
-### Fase 1: Inicio da infeccao e reconhecimento
-- foi iniciado o filtro do ip hostil que foi identificado atraves dos alertas !
-- ip.addr
- ![ip.addr](docs/imgs/ip_addr.png)
-- e possivel notar uma requisicao para connecttest.txt com status code 200 ok!
-  ![connect_test](docs/imgs/connect_test.png)
-- seguido de uma tentativa de conexao com um dominio da miscrosoft
-- HTPP_export_objects
- ![http_object_export](docs/imgs/htpp_object_export.png)
-- momento da infeçãoo ao analisar tcp.stream eq 112
- ![momento da infecção](docs/imgs/momento_infeccao.png)
-- arquivo identificado disfarcado de fatura  ( Invoice 876597035_003.zip)
-## fluxo dns e udp 
-- apos o download do arquivo foi feito um filtro dns do qual vimos algumas tentativas de conexao a dominios legitimos 
-![UDP.stream](docs/imgs/udp_stream_acesso_dominios_legitimos.png)
-- e erro no such name para wpad.lafontainebleau.org 
-![nosuchname](docs/imgs/no_such_name.png)
+### Fase 1 — Reconhecimento e Vetor de Infecção
 
-## Falha no ataque  e SYN FLOOD para ip 72.54.43.29 
-- foi identificado atraves do filtro tcp.flags.syn == 1 && tcp.flags.ack == 0
-- erro de port unreacheable ICMP (tentativa de conexao interna)
-- SYN FLOOD sem resposta ACK
-- Comportamento de Botnet
-![TCP_flags](docs/imgs/tcp_flags.png)
+Filtro aplicado com base nos alertas: `ip.addr == 10.8.15.133`
+
+Identificada requisição HTTP com `200 OK` para `connecttest.txt` — técnica usada para checar conectividade antes da infecção.
+
+![ip.addr](docs/imgs/ip_addr.png)
+![connect_test](docs/imgs/connect_test.png)
+
+Via **HTTP Export Objects**, foi localizado o artefato malicioso: `Invoice_876597035_003.zip` disfarçado de `.txt`. A verificação no `tcp.stream eq 112` confirmou a assinatura `PK` — extensão spoofing.
+
+![http_object_export](docs/imgs/htpp_object_export.png)
+![momento_infeccao](docs/imgs/momento_infeccao.png)
+
+---
+
+### Fase 2 — Comportamento DNS e Camuflagem de Tráfego
+
+O malware realizou consultas DNS para domínios legítimos (`adobe.com`, `office.com`) para camuflar sua atividade e testar conectividade.
+
+![udp_stream](docs/imgs/udp_stream_acesso_dominios_legitimos.png)
+
+Erro `NXDOMAIN` para `wpad.lafontainebleau.org` — tentativa de localizar proxy WPAD interno inexistente.
+
+![no_such_name](docs/imgs/no_such_name.png)
+
+---
+
+### Fase 3 — Tentativa de C2 e Movimentação Lateral
+
+Filtro: `tcp.flags.syn == 1 && tcp.flags.ack == 0`
+
+Identificado SYN Flood sem resposta ACK para `72.54.43.29` e ICMP tipo 3 (`port unreachable`) — indicando que o firewall bloqueou a comunicação externa e a movimentação lateral.
+
+![tcp_flags](docs/imgs/tcp_flags.png)
 ![ICMP](docs/imgs/ICMP.png)
 
-## Conclusao
+---
 
-- A análise revelou um ciclo completo de comprometimento: desde o download de um artefato disfarçado de fatura até a tentativa de comunicação com infraestrutura de comando e controle externa.
--  O bloqueio de serviços internos e as falhas de conexão (ICMP Unreachable) sugerem que mecanismos de defesa da rede limitaram o impacto da movimentação lateral."
+## ✅ Conclusão
+
+A análise demonstrou o ciclo completo de comprometimento: entrega via extensão spoofing → execução → tentativa de C2 → movimentação lateral bloqueada pelo firewall.
+
+> Este caso foi a motivação direta para o desenvolvimento do **[ExtCheck](https://github.com/Yakov021/projeto_ExtCheck)** — ferramenta Python de detecção de spoofing de extensões via Magic Bytes.
